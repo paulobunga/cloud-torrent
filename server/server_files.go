@@ -35,6 +35,9 @@ func (s *Server) listFiles() *fsNode {
 }
 
 func (s *Server) serveFiles(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Path == "/admin" || r.URL.Path == "/admin/" {
+		r.URL.Path = "/admin.html"
+	}
 	if strings.HasPrefix(r.URL.Path, "/download/") {
 		url := strings.TrimPrefix(r.URL.Path, "/download/")
 		//dldir is absolute
