@@ -1,0 +1,15 @@
+<div ng-if="isdir()">
+  <div class="folder-item" ng-click="toggle()">
+    <i class="folder icon" ng-class="{open: !closed()}" style="color: #fbbd08; margin-right: 8px;"></i>
+    <span>{{ node.Name }}</span>
+  </div>
+  <div class="folder-children" ng-if="!closed()" style="margin-left: 15px; border-left: 1px solid #333; padding-left: 8px;">
+    <div ng-repeat="node in node.Children" ng-controller="ViewerNodeController" ng-include src="'/template/viewer-tree.html'"></div>
+  </div>
+</div>
+<div ng-if="isfile()">
+  <div class="file-item" ng-class="{active: viewer.currentFile === node}" ng-click="viewer.playFile(node)" style="padding: 6px 10px; cursor: pointer; border-radius: 4px; display: flex; align-items: center; transition: background 0.2s;">
+    <i class="file outline icon" ng-class="{video: videoPreview, audio: audioPreview, image: imagePreview}" style="margin-right: 8px; color: #2185d0;"></i>
+    <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ node.Name }}</span>
+  </div>
+</div>
