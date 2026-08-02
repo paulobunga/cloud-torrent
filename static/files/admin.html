@@ -55,6 +55,102 @@
 		<section class="torrents" ng-controller="TorrentsController" ng-include src="'/template/torrents.html'"></section>
 		<section class="downloads" ng-controller="DownloadsController" ng-include src="'/template/downloads.html'"></section>
 
+		<!-- TMDB ENRICHMENT MODAL OVERLAY -->
+		<div ng-controller="EnrichController" ng-if="enrichingNode" class="ui dimmer page active" style="overflow-y: auto; padding: 40px 0; display: block; z-index: 10000;">
+			<div class="ui modal active" style="margin-top: 0; position: relative; top: 0; left: 0; display: block; width: 85%; max-width: 800px; margin-left: auto; margin-right: auto;">
+				<div class="header" style="background: #1b1c1d; color: white; padding: 15px; font-size: 1.3em;">
+					<i class="teal tag icon"></i> Enrich downloaded media with TMDB
+					<i class="close icon" ng-click="closeModal()" style="float: right; cursor: pointer;"></i>
+				</div>
+				<div class="content" style="max-height: 60vh; overflow-y: auto; padding: 20px; color: #333;">
+					<div class="ui form">
+						<div class="field">
+							<label>Selected Item Path</label>
+							<input type="text" readonly ng-value="enrichingNode.$path" style="background: #f0f0f0;">
+						</div>
+						<div class="fields" style="display: flex; gap: 10px;">
+							<div class="twelve wide field" style="flex: 1;">
+								<label>Search TMDB Title</label>
+								<input type="text" ng-model="searchQuery" placeholder="Type movie or series title...">
+							</div>
+							<div class="four wide field" style="display: flex; align-items: flex-end;">
+								<button class="ui teal button fluid" ng-click="searchTMDB()" ng-class="{loading: loading}">
+									<i class="search icon"></i> Search
+								</button>
+							</div>
+						</div>
+					</div>
+
+					<div class="ui divider" style="margin: 20px 0;"></div>
+
+					<!-- Search Results -->
+					<h4 class="ui header" ng-if="searchResults.length > 0">TMDB Match Results</h4>
+					<div class="ui divided items" ng-if="searchResults.length > 0">
+						<div class="item" ng-repeat="item in searchResults" style="display: flex; gap: 15px; padding: 15px 0; border-bottom: 1px solid #eee;">
+							<div style="width: 80px; min-width: 80px;">
+								<img ng-if="item.poster_path" ng-src="https://image.tmdb.org/t/p/w154{{item.poster_path}}" style="width: 100%; border-radius: 4px;">
+								<div ng-if="!item.poster_path" style="width: 100%; height: 120px; background: #eee; border-radius: 4px; display: flex; align-items: center; justify-content: center; color: #888;">No Poster</div>
+							</div>
+							<div class="content" style="flex: 1;">
+								<div class="header" style="font-weight: bold; font-size: 1.1em; color: #141414;">
+									{{ item.title || item.name }}
+									<span style="color: #888; font-weight: normal; font-size: 0.9em;">({{ (item.release_date || item.first_air_date) | limitTo:4 }})</span>
+								</div>
+								<div class="meta" style="color: #666; font-size: 0.9em; margin-bottom: 5px;">
+									<span class="ui tiny label">{{ item.media_type | uppercase }}</span>
+									<span style="margin-left: 10px;"><i class="star yellow icon"></i> {{ item.vote_average }}</span>
+								</div>
+								<div class="description" style="font-size: 0.9em; color: #555; line-height: 1.3;">
+									{{ item.overview | limitTo:150 }}{{ item.overview.length > 150 ? '...' : '' }}
+								</div>
+								<div class="extra" style="margin-top: 10px;">
+									<button class="ui mini blue button" ng-click="selectResult(item)" ng-class="{active: selectedResult.id === item.id}">
+										{{ selectedResult.id === item.id ? 'Selected' : 'Select This' }}
+									</button>
+								</div>
+							</div>
+						</div>
+					</div>
+
+					<!-- Selection confirmation & TV episode enrichment details -->
+					<div ng-if="selectedResult" class="ui segment secondary" style="margin-top: 20px; padding: 15px;">
+						<h4 class="ui header">Enrichment Details (Saving to Database)</h4>
+						<div class="ui form">
+							<div class="fields" style="display: flex; gap: 15px;">
+								<div class="field" style="flex: 1;">
+									<label>Title</label>
+									<input type="text" ng-value="selectedResult.title || selectedResult.name" readonly>
+								</div>
+								<div class="field" style="width: 150px;">
+									<label>Media Type</label>
+									<select ng-model="mediaType" class="ui dropdown" style="display: block; width: 100%;">
+										<option value="movie">Movie</option>
+										<option value="tv">TV Show</option>
+									</select>
+								</div>
+							</div>
+							<div class="fields" ng-if="mediaType === 'tv'" style="display: flex; gap: 15px; margin-top: 10px;">
+								<div class="field" style="flex: 1;">
+									<label>Season Number</label>
+									<input type="number" ng-model="seasonNumber" placeholder="e.g. 1">
+								</div>
+								<div class="field" style="flex: 1;">
+									<label>Episode Number</label>
+									<input type="number" ng-model="episodeNumber" placeholder="e.g. 5">
+								</div>
+							</div>
+						</div>
+					</div>
+				</div>
+				<div class="actions" style="background: #f9f9f9; padding: 15px; text-align: right; border-top: 1px solid #eee;">
+					<button class="ui button" ng-click="closeModal()">Cancel</button>
+					<button class="ui green button" ng-click="saveEnrichment()" ng-disabled="!selectedResult" ng-class="{loading: loading}">
+						<i class="checkmark icon"></i> Save Metadata
+					</button>
+				</div>
+			</div>
+		</div>
+
 		<footer>
 			<div>
 				<span>github.com/

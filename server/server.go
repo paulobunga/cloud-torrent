@@ -63,6 +63,9 @@ type Server struct {
 
 // Run the server
 func (s *Server) Run(version string) error {
+	// Initialize and connect to DB if configuration is set
+	ConnectDB()
+
 	isTLS := s.CertPath != "" || s.KeyPath != "" //poor man's XOR
 	if isTLS && (s.CertPath == "" || s.KeyPath == "") {
 		return fmt.Errorf("You must provide both key and cert paths")
@@ -99,15 +102,32 @@ func (s *Server) Run(version string) error {
 		EnableUpload:      true,
 		AutoStart:         true,
 	}
-	if _, err := os.Stat(s.ConfigPath); err == nil {
-		if b, err := ioutil.ReadFile(s.ConfigPath); err != nil {
-			return fmt.Errorf("Read configuration error: %s", err)
-		} else if len(b) == 0 {
-			//ignore empty file
-		} else if err := json.Unmarshal(b, &c); err != nil {
-			return fmt.Errorf("Malformed configuration: %s", err)
+
+	loadedFromDB := false
+	if DB != nil {
+		var dbs DBSetting
+		if err := DB.First(&dbs, 1).Error; err == nil {
+			c.DownloadDirectory = dbs.DownloadDirectory
+			c.IncomingPort = dbs.IncomingPort
+			c.EnableUpload = dbs.EnableUpload
+			c.EnableSeeding = dbs.EnableSeeding
+			loadedFromDB = true
+			log.Println("Configuration loaded from MySQL database.")
 		}
 	}
+
+	if !loadedFromDB {
+		if _, err := os.Stat(s.ConfigPath); err == nil {
+			if b, err := ioutil.ReadFile(s.ConfigPath); err != nil {
+				return fmt.Errorf("Read configuration error: %s", err)
+			} else if len(b) == 0 {
+				//ignore empty file
+			} else if err := json.Unmarshal(b, &c); err != nil {
+				return fmt.Errorf("Malformed configuration: %s", err)
+			}
+		}
+	}
+
 	if c.IncomingPort <= 0 || c.IncomingPort >= 65535 {
 		c.IncomingPort = 50007
 	}
@@ -199,8 +219,26 @@ func (s *Server) reconfigure(c engine.Config) error {
 	if err := s.engine.Configure(c); err != nil {
 		return err
 	}
-	b, _ := json.MarshalIndent(&c, "", "  ")
-	ioutil.WriteFile(s.ConfigPath, b, 0755)
+
+	if DB != nil {
+		dbs := DBSetting{
+			ID:                1,
+			DownloadDirectory: c.DownloadDirectory,
+			IncomingPort:      c.IncomingPort,
+			EnableUpload:      c.EnableUpload,
+			EnableSeeding:     c.EnableSeeding,
+			TMDBAPIKey:        os.Getenv("TMDB_API_KEY"),
+		}
+		if err := DB.Save(&dbs).Error; err != nil {
+			log.Printf("Error saving configuration to MySQL database: %v\n", err)
+		} else {
+			log.Println("Configuration saved to MySQL database.")
+		}
+	} else {
+		b, _ := json.MarshalIndent(&c, "", "  ")
+		ioutil.WriteFile(s.ConfigPath, b, 0755)
+	}
+
 	s.state.Config = c
 	s.state.Push()
 	return nil
@@ -231,6 +269,16 @@ func (s *Server) handle(w http.ResponseWriter, r *http.Request) {
 		s.scraperh.ServeHTTP(w, r)
 		return
 	}
+	// Custom Streaming Platform API routes
+	if strings.HasPrefix(r.URL.Path, "/api/tmdb/") ||
+		strings.HasPrefix(r.URL.Path, "/api/media/") ||
+		strings.HasPrefix(r.URL.Path, "/api/stream") ||
+		strings.HasPrefix(r.URL.Path, "/api/subtitles") ||
+		strings.HasPrefix(r.URL.Path, "/api/progress") {
+		s.handleStreamingAPI(w, r)
+		return
+	}
+
 	//api call
 	if strings.HasPrefix(r.URL.Path, "/api/") {
 		//only pass request in, expect error out
